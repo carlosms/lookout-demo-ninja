@@ -1,0 +1,40 @@
+version: '3.3'
+
+services:
+  lookout:
+    image: "srcd/lookout:latest"
+    network_mode: "host"
+    depends_on:
+      - postgres
+      - bblfsh
+      - style-analyzer
+    ports:
+      - "10301:10301"
+    entrypoint: ["/bin/sh"]
+    # long sleep to give bblfsh time to install the driver
+    command: ["-c", "sleep 3m && lookoutd migrate && lookoutd serve -c /compose-files/config.yml"]
+    volumes:
+      - ./lookout-files:/compose-files
+  style-analyzer:
+    image: "srcd/style-analyzer:latest"
+    network_mode: "host"
+    ports:
+      - "9930:9930"
+    command: ["run", "lookout.style.format", "-c", "/compose-files/config.yml"]
+    volumes:
+      - ./style-analyzer-files:/compose-files
+  bblfsh:
+    image: "bblfsh/bblfshd:v2.11.0-drivers"
+    privileged: true
+    ports:
+      - "9432:9432"
+    entrypoint: ["/bin/sh"]
+    command: ["-c", "bblfshd & sleep 1 && bblfshctl driver remove javascript && bblfshctl driver install javascript bblfsh/javascript-driver:v1.2.0 && tail -f /dev/null"]
+  postgres:
+    image: "postgres:alpine"
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: lookout
